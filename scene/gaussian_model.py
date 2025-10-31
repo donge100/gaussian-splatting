@@ -498,10 +498,15 @@ class GaussianModel:
         H_3x3 = mirror_transform[:3, :3]
         R = build_rotation(object_rotation_q)
         R_reflected = H_3x3 @ R
-        # det 보정 (det<0이면 한 축 뒤집기)
-        need_flip = (torch.det(R_reflected) < 0)
-        if need_flip.any():
-            R_reflected[need_flip, :, 2] = -R_reflected[need_flip, :, 2]
+        # 재직교화(SVD) + det(+1) 강제
+        U, S, Vt = torch.linalg.svd(R_reflected)      # (N,3,3)
+        R_reflected = U @ Vt
+        det = torch.det(R_reflected)
+        neg = det < 0
+        if neg.any():
+            Vt[neg, -1, :] *= -1.0
+            R_reflected = U @ Vt
+
         reflected_rotation_q = quat_from_matrix(R_reflected)
 
         # 반사시킨 속성 반환
